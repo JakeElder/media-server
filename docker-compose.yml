@@ -1,0 +1,138 @@
+version: '3'
+
+services:
+  traefik:
+    image: traefik:maroilles-alpine
+    restart: always
+    ports:
+      - "80:8080"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.toml:/traefik.toml
+      - ./traefik/acme.json:/acme.json
+    networks:
+      - web
+    labels:
+      - "traefik.backend=traefik"
+      - "traefik.docker.network=web"
+      - "traefik.frontend.rule=Host:traefik.jakes.world"
+      - "traefik.port=8080"
+
+  plex:
+    image: plexinc/pms-docker
+    ports:
+      - 32400:32400
+    environment:
+      - TZ=${TZ}
+      - PLEX_UID=${PUID}
+      - PLEX_GID=${PGID}
+    networks:
+      - web
+    volumes:
+      - ./plex:/config
+      - /tmp/plex:/transcode
+      - /data/media:/data/media
+    labels:
+      - "traefik.backend=plex"
+      - "traefik.docker.network=web"
+      - "traefik.frontend.rule=Host:plex.jakes.world"
+      - "traefik.port=32400"
+
+  sabnzbd:
+    image: linuxserver/sabnzbd
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+      - PUID=${PUID}
+      - PGID=${PGID}
+    networks:
+      - web
+      - default
+    volumes:
+      - /data/usenet-downloads/complete:/data/usenet-downloads/complete
+      - /data/usenet-downloads/incomplete:/data/usenet-downloads/incomplete
+      - /data/media/Other:/data/media/Other
+      - ./sabnzbd:/config
+    labels:
+      - "traefik.backend=sabnzbd"
+      - "traefik.docker.network=web"
+      - "traefik.frontend.rule=Host:sabnzbd.jakes.world"
+      - "traefik.port=8080"
+
+  sonarr:
+    image: linuxserver/sonarr
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+      - PUID=${PUID}
+      - PGID=${PGID}
+    networks:
+      - web
+    volumes:
+      - ./sonarr:/config
+      - /data/usenet-downloads/complete:/data/usenet-downloads/complete
+      - /data/torrent-downloads/complete:/data/torrent-downloads/complete
+      - /data/media/TV:/data/media/TV
+    labels:
+      - "traefik.backend=sonarr"
+      - "traefik.docker.network=web"
+      - "traefik.frontend.rule=Host:sonarr.jakes.world"
+      - "traefik.port=8989"
+
+  radarr:
+    image: linuxserver/radarr
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+      - PUID=${PUID}
+      - PGID=${PGID}
+    networks:
+      - web
+    volumes:
+      - ./radarr:/config
+      - /data/media/Films:/data/media/Films
+      - /data/usenet-downloads/complete:/data/usenet-downloads/complete
+    labels:
+      - "traefik.backend=radarr"
+      - "traefik.docker.network=web"
+      - "traefik.frontend.rule=Host:radarr.jakes.world"
+      - "traefik.port=7878"
+
+  transmission:
+    image: ghcr.io/linuxserver/transmission
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    networks:
+      - web
+    volumes:
+      - ./transmission:/config
+      - /data/media/torrent-downloads:/data/media/torrent-downloads
+    ports:
+      - 9091:9091
+      - 51413:51413
+      - 51413:51413/udp
+    labels:
+      - "traefik.backend=transmission"
+      - "traefik.docker.network=web"
+      - "traefik.frontend.rule=Host:transmission.jakes.world"
+      - "traefik.port=9091"
+
+  www:
+    image: nginx
+    networks:
+      - web
+    volumes:
+      - ./jakes.world:/usr/share/nginx/html
+    labels:
+      - "traefik.backend=www"
+      - "traefik.docker.network=web"
+      - "traefik.frontend.rule=Host:jakes.world"
+      - "traefik.port=80"
+
+networks:
+  web:
+    external: true
